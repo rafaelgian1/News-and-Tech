@@ -3,6 +3,7 @@ import { createEmptyIssue, listAllSubsections, normalizeIssue } from "@/lib/issu
 import { callJsonLLM } from "@/lib/llm";
 import { promptA_automationToIssueJSON, promptB_issueToNarrative } from "@/lib/prompts";
 import { SECTION_ORDER } from "@/lib/sections";
+import { applySportsApiToIssue, hasSportsDataApiConfig } from "@/lib/sportsData";
 import { DailyIssue, IngestPayload, Subsection } from "@/lib/types";
 
 function estimateReadTimeMinutes(subsection: Subsection) {
@@ -66,46 +67,51 @@ export async function parseAutomationPayload(payload: IngestPayload): Promise<Da
   const techText = payload.techText ?? "";
   const sportsText = payload.sportsText ?? "";
 
-  if (!newsText.trim() && !techText.trim() && !sportsText.trim()) {
+  const hasAnyInput = newsText.trim().length > 0 || techText.trim().length > 0 || sportsText.trim().length > 0;
+
+  if (!hasAnyInput && !hasSportsDataApiConfig()) {
     return empty;
   }
 
   let parsed = empty;
   let usedFallback = false;
 
-  try {
-    const raw = await callJsonLLM(
-      promptA_automationToIssueJSON({
-        date,
-        newsText,
-        techText,
-        sportsText
-      })
-    );
-
-    parsed = normalizeIssue(raw, date);
-  } catch {
-    parsed = parseWithoutLLM(parsed, {
-      newsText,
-      techText,
-      sportsText
-    });
-    usedFallback = true;
-  }
-
-  if (!usedFallback) {
+  if (hasAnyInput) {
     try {
-      const narrative = await callJsonLLM(promptB_issueToNarrative(parsed));
-      parsed = attachNarratives(parsed, narrative);
+      const raw = await callJsonLLM(
+        promptA_automationToIssueJSON({
+          date,
+          newsText,
+          techText,
+          sportsText
+        })
+      );
+
+      parsed = normalizeIssue(raw, date);
     } catch {
       parsed = parseWithoutLLM(parsed, {
         newsText,
         techText,
         sportsText
       });
+      usedFallback = true;
+    }
+
+    if (!usedFallback) {
+      try {
+        const narrative = await callJsonLLM(promptB_issueToNarrative(parsed));
+        parsed = attachNarratives(parsed, narrative);
+      } catch {
+        parsed = parseWithoutLLM(parsed, {
+          newsText,
+          techText,
+          sportsText
+        });
+      }
     }
   }
 
+  parsed = await applySportsApiToIssue(parsed);
   parsed.rawAutomationInput = `${newsText}\n\n${techText}\n\n${sportsText}`.trim();
 
   return attachReadTimes(parsed);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateAutomationFeedFromLLM, loadAutomationFeed } from "@/lib/automationFeed";
+import { hasSportsDataApiConfig } from "@/lib/sportsData";
 import { ingestDailyIssue } from "@/lib/service";
 import { IngestPayload } from "@/lib/types";
 
@@ -47,14 +48,23 @@ async function runIngest(body: IngestPayload) {
     }
 
     if (!feed || (!feed.newsText.trim() && !feed.techText.trim() && !feed.sportsText.trim())) {
-      return NextResponse.json(
-        {
-          error: "Automation feed missing for selected day",
-          status: "missing",
-          retryable: true
-        },
-        { status: 404 }
-      );
+      if (!hasSportsDataApiConfig()) {
+        return NextResponse.json(
+          {
+            error: "Automation feed missing for selected day",
+            status: "missing",
+            retryable: true
+          },
+          { status: 404 }
+        );
+      }
+
+      feed = {
+        date,
+        newsText: "",
+        techText: "",
+        sportsText: ""
+      };
     }
 
     newsText = feed.newsText;

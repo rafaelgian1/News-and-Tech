@@ -10,8 +10,6 @@ type TargetRule = {
   patterns: RegExp[];
 };
 
-const MATCH_HINT = /(kickoff|starts at|athens time|vs\.?|fixture|matchday|final score|ft\b|result\b|ended\b|won\b|drew\b|lost\b)/i;
-
 const TARGET_RULES: TargetRule[] = [
   { source: "news", block: "news", subsection: "cyprus", patterns: [/\bcyprus\b/i, /\bnicosia\b/i, /\blimassol\b/i] },
   { source: "news", block: "news", subsection: "greece", patterns: [/\bgreece\b/i, /\bgreek\b/i, /\bathens\b/i] },
@@ -46,91 +44,91 @@ const TARGET_RULES: TargetRule[] = [
     source: "sports",
     block: "match_center",
     subsection: "football_cyprus_league",
-    patterns: [MATCH_HINT, /\bcyprus league\b/i, /\bcypriot league\b/i]
+    patterns: [/\bcyprus league\b/i, /\bcypriot league\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "football_greek_super_league",
-    patterns: [MATCH_HINT, /\bgreek super league\b/i]
+    patterns: [/\bgreek super league\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "football_champions_league",
-    patterns: [MATCH_HINT, /\bchampions league\b/i]
+    patterns: [/\bchampions league\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "football_europa_league",
-    patterns: [MATCH_HINT, /\beuropa league\b/i]
+    patterns: [/\beuropa league\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "football_conference_league",
-    patterns: [MATCH_HINT, /\bconference league\b/i]
+    patterns: [/\bconference league\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "football_premier_league",
-    patterns: [MATCH_HINT, /\bpremier league\b/i]
+    patterns: [/\bpremier league\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "football_bundesliga",
-    patterns: [MATCH_HINT, /\bbundesliga\b/i]
+    patterns: [/\bbundesliga\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "football_serie_a",
-    patterns: [MATCH_HINT, /\bserie a\b/i]
+    patterns: [/\bserie a\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "football_ligue_1",
-    patterns: [MATCH_HINT, /\bligue 1\b/i]
+    patterns: [/\bligue 1\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "football_la_liga",
-    patterns: [MATCH_HINT, /\bla liga\b/i]
+    patterns: [/\bla liga\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "basketball_euroleague",
-    patterns: [MATCH_HINT, /\beuroleague\b/i, /\beuroliga\b/i]
+    patterns: [/\beuroleague\b/i, /\beuroliga\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "basketball_greek_league",
-    patterns: [MATCH_HINT, /\bgreek basketball league\b/i, /\bbasket league\b/i]
+    patterns: [/\bgreek basketball league\b/i, /\bbasket league\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "national_euro",
-    patterns: [MATCH_HINT, /\buefa euro\b/i, /\beuro\b/i]
+    patterns: [/\buefa euro\b/i, /\beuro\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "national_world_cup",
-    patterns: [MATCH_HINT, /\bworld cup\b/i]
+    patterns: [/\bworld cup\b/i]
   },
   {
     source: "sports",
     block: "match_center",
     subsection: "national_nations_league",
-    patterns: [MATCH_HINT, /\bnations league\b/i]
+    patterns: [/\bnations league\b/i]
   },
 
   {
@@ -246,7 +244,7 @@ function splitSentences(text: string): string[] {
 
 function classifySentence(sentence: string, source: SourceBucket): { block: CoverBlock; subsection: string } {
   const matched = TARGET_RULES.find(
-    (rule) => rule.source === source && rule.patterns.every((pattern) => pattern.test(sentence))
+    (rule) => rule.source === source && rule.patterns.some((pattern) => pattern.test(sentence))
   );
 
   if (matched) {
