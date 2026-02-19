@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadAutomationFeed } from "@/lib/automationFeed";
+import { generateAutomationFeedFromLLM, loadAutomationFeed } from "@/lib/automationFeed";
 import { ingestDailyIssue } from "@/lib/service";
 import { IngestPayload } from "@/lib/types";
 
@@ -36,7 +36,14 @@ async function runIngest(body: IngestPayload) {
   let techText = body.techText ?? "";
 
   if (!newsText.trim() && !techText.trim()) {
-    const feed = await loadAutomationFeed(date);
+    let feed = await loadAutomationFeed(date);
+
+    if (!feed || (!feed.newsText.trim() && !feed.techText.trim())) {
+      const allowAuto = (process.env.AUTO_GENERATE_DAILY_BRIEF ?? "true").toLowerCase() !== "false";
+      if (allowAuto) {
+        feed = await generateAutomationFeedFromLLM(date);
+      }
+    }
 
     if (!feed || (!feed.newsText.trim() && !feed.techText.trim())) {
       return NextResponse.json(
