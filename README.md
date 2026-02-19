@@ -50,7 +50,7 @@ npm run ingest -- 2026-02-18
    - Any optional feed/image vars you use
 5. Deploy.
 
-`vercel.json` already includes a daily cron to call `/api/ingest` at `07:05`.
+`vercel.json` includes a daily cron to call `/api/ingest` at `07:00 UTC` (09:00 in Greece/Cyprus during winter).
 
 ## API
 - `GET /api/issues?date=YYYY-MM-DD`

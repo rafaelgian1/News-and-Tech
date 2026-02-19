@@ -19,11 +19,17 @@ function isAuthorized(request: NextRequest) {
   return headerToken === cronSecret || bearer === cronSecret || queryToken === cronSecret;
 }
 
-async function runIngest(request: NextRequest, body: IngestPayload) {
-  if (!isAuthorized(request)) {
-    return unauthorized();
-  }
+function athensHourNow() {
+  return Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Athens",
+      hour: "2-digit",
+      hour12: false
+    }).format(new Date())
+  );
+}
 
+async function runIngest(body: IngestPayload) {
   const date = body.date ?? new Date().toISOString().slice(0, 10);
 
   let newsText = body.newsText ?? "";
@@ -67,7 +73,16 @@ async function runIngest(request: NextRequest, body: IngestPayload) {
 }
 
 export async function GET(request: NextRequest) {
-  return runIngest(request, {
+  if (!isAuthorized(request)) {
+    return unauthorized();
+  }
+
+  // Two UTC cron schedules are configured; run only at 09:00 Athens local time.
+  if (athensHourNow() !== 9) {
+    return NextResponse.json({ status: "skipped", reason: "Outside 09:00 Europe/Athens window" }, { status: 202 });
+  }
+
+  return runIngest({
     date: request.nextUrl.searchParams.get("date") ?? undefined,
     newsText: "",
     techText: ""
@@ -83,5 +98,5 @@ export async function POST(request: NextRequest) {
     body = { date: undefined, newsText: "", techText: "" };
   }
 
-  return runIngest(request, body);
+  return runIngest(body);
 }
