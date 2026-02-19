@@ -9,6 +9,7 @@ import {
   rotateIntoArchive,
   saveIssue
 } from "@/lib/repository";
+import { SECTION_ORDER } from "@/lib/sections";
 import { DailyIssue, IngestPayload } from "@/lib/types";
 
 export async function ingestDailyIssue(payload: IngestPayload): Promise<DailyIssue> {
@@ -16,22 +17,24 @@ export async function ingestDailyIssue(payload: IngestPayload): Promise<DailyIss
 
   try {
     const parsed = await parseAutomationPayload({ ...payload, date });
-    const newsCover = await getOrCreateCover(parsed, "news");
-    const techCover = await getOrCreateCover(parsed, "tech");
+    const coverEntries = await Promise.all(
+      SECTION_ORDER.map(async (block) => {
+        const cover = await getOrCreateCover(parsed, block);
+        return [block, cover] as const;
+      })
+    );
 
     const issue: DailyIssue = {
       ...parsed,
       date,
-      covers: {
-        news: newsCover,
-        tech: techCover
-      },
+      covers: Object.fromEntries(coverEntries),
       updatedAt: new Date().toISOString()
     };
 
     await saveIssue(issue, {
       newsText: payload.newsText,
-      techText: payload.techText
+      techText: payload.techText,
+      sportsText: payload.sportsText
     });
 
     await rotateIntoArchive(date);

@@ -1,22 +1,239 @@
-import { BriefItem, DailyIssue, Subsection } from "@/lib/types";
+import { sectionDefaultSubsection, SECTION_DEFINITIONS } from "@/lib/sections";
+import { BriefItem, CoverBlock, DailyIssue, Subsection } from "@/lib/types";
 
-type TargetKey =
-  | "news.cyprus"
-  | "news.greece"
-  | "news.world"
-  | "tech.cs"
-  | "tech.programming"
-  | "tech.ai_llm"
-  | "tech.other";
+type SourceBucket = "news" | "tech" | "sports";
 
-const TARGET_RULES: Array<{ key: TargetKey; patterns: RegExp[] }> = [
-  { key: "news.cyprus", patterns: [/\bcyprus\b/i, /\bnicosia\b/i] },
-  { key: "news.greece", patterns: [/\bgreece\b/i, /\bgreek\b/i, /\bathens\b/i] },
-  { key: "news.world", patterns: [/\bworld\b/i, /\bworldwide\b/i, /\bglobal\b/i, /\binternational\b/i] },
-  { key: "tech.cs", patterns: [/\bcomputer science\b/i, /\bresearch\b/i, /\bpaper\b/i, /\bbenchmark\b/i] },
-  { key: "tech.programming", patterns: [/\bprogramming\b/i, /\blanguage\b/i, /\bcompiler\b/i, /\btypescript\b/i, /\bpython\b/i] },
-  { key: "tech.ai_llm", patterns: [/\bai\b/i, /\bllm\b/i, /\bmodel\b/i, /\binference\b/i, /\bprompt\b/i] },
-  { key: "tech.other", patterns: [/\bengineering\b/i, /\bplatform\b/i, /\binfrastructure\b/i, /\bdevops\b/i, /\barchitecture\b/i] }
+type TargetRule = {
+  source: SourceBucket;
+  block: CoverBlock;
+  subsection: string;
+  patterns: RegExp[];
+};
+
+const MATCH_HINT = /(kickoff|starts at|athens time|vs\.?|fixture|matchday|final score|ft\b|result\b|ended\b|won\b|drew\b|lost\b)/i;
+
+const TARGET_RULES: TargetRule[] = [
+  { source: "news", block: "news", subsection: "cyprus", patterns: [/\bcyprus\b/i, /\bnicosia\b/i, /\blimassol\b/i] },
+  { source: "news", block: "news", subsection: "greece", patterns: [/\bgreece\b/i, /\bgreek\b/i, /\bathens\b/i] },
+  { source: "news", block: "news", subsection: "world", patterns: [/\bworld\b/i, /\bglobal\b/i, /\binternational\b/i] },
+
+  {
+    source: "tech",
+    block: "tech",
+    subsection: "cs",
+    patterns: [/\bcomputer science\b/i, /\bresearch\b/i, /\bbenchmark\b/i, /\barxiv\b/i]
+  },
+  {
+    source: "tech",
+    block: "tech",
+    subsection: "programming",
+    patterns: [/\bprogramming\b/i, /\blanguage\b/i, /\bcompiler\b/i, /\btypescript\b/i, /\bpython\b/i]
+  },
+  {
+    source: "tech",
+    block: "tech",
+    subsection: "ai_llm",
+    patterns: [/\bai\b/i, /\bllm\b/i, /\bmodel\b/i, /\binference\b/i, /\bprompt\b/i]
+  },
+  {
+    source: "tech",
+    block: "tech",
+    subsection: "other",
+    patterns: [/\bengineering\b/i, /\bplatform\b/i, /\binfrastructure\b/i, /\bdevops\b/i, /\barchitecture\b/i]
+  },
+
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "football_cyprus_league",
+    patterns: [MATCH_HINT, /\bcyprus league\b/i, /\bcypriot league\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "football_greek_super_league",
+    patterns: [MATCH_HINT, /\bgreek super league\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "football_champions_league",
+    patterns: [MATCH_HINT, /\bchampions league\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "football_europa_league",
+    patterns: [MATCH_HINT, /\beuropa league\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "football_conference_league",
+    patterns: [MATCH_HINT, /\bconference league\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "football_premier_league",
+    patterns: [MATCH_HINT, /\bpremier league\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "football_bundesliga",
+    patterns: [MATCH_HINT, /\bbundesliga\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "football_serie_a",
+    patterns: [MATCH_HINT, /\bserie a\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "football_ligue_1",
+    patterns: [MATCH_HINT, /\bligue 1\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "football_la_liga",
+    patterns: [MATCH_HINT, /\bla liga\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "basketball_euroleague",
+    patterns: [MATCH_HINT, /\beuroleague\b/i, /\beuroliga\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "basketball_greek_league",
+    patterns: [MATCH_HINT, /\bgreek basketball league\b/i, /\bbasket league\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "national_euro",
+    patterns: [MATCH_HINT, /\buefa euro\b/i, /\beuro\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "national_world_cup",
+    patterns: [MATCH_HINT, /\bworld cup\b/i]
+  },
+  {
+    source: "sports",
+    block: "match_center",
+    subsection: "national_nations_league",
+    patterns: [MATCH_HINT, /\bnations league\b/i]
+  },
+
+  {
+    source: "sports",
+    block: "cyprus_football",
+    subsection: "cyprus_league_general",
+    patterns: [/\bcyprus league\b/i, /\bcypriot football\b/i]
+  },
+  { source: "sports", block: "cyprus_football", subsection: "apollon_limassol", patterns: [/\bapollon\b/i] },
+  { source: "sports", block: "cyprus_football", subsection: "ael_limassol", patterns: [/\bael\b/i] },
+  { source: "sports", block: "cyprus_football", subsection: "apoel_nicosia", patterns: [/\bapoel\b/i] },
+  { source: "sports", block: "cyprus_football", subsection: "omonoia_nicosia", patterns: [/\bomonoia\b/i] },
+  {
+    source: "sports",
+    block: "cyprus_football",
+    subsection: "anorthosis_famagusta",
+    patterns: [/\banorthosis\b/i]
+  },
+  { source: "sports", block: "cyprus_football", subsection: "aek_larnaka", patterns: [/\baek larnaka\b/i] },
+
+  {
+    source: "sports",
+    block: "greek_super_league",
+    subsection: "greek_super_league_general",
+    patterns: [/\bgreek super league\b/i]
+  },
+  {
+    source: "sports",
+    block: "greek_super_league",
+    subsection: "olympiacos_piraeus",
+    patterns: [/\bolympiacos\b/i]
+  },
+  { source: "sports", block: "greek_super_league", subsection: "aek_athens", patterns: [/\baek athens\b/i] },
+  {
+    source: "sports",
+    block: "greek_super_league",
+    subsection: "panathinaikos_fc",
+    patterns: [/\bpanathinaikos\b/i]
+  },
+  { source: "sports", block: "greek_super_league", subsection: "paok_fc", patterns: [/\bpaok\b/i] },
+  { source: "sports", block: "greek_super_league", subsection: "aris_fc", patterns: [/\baris\b/i] },
+
+  { source: "sports", block: "euroleague", subsection: "euroleague_general", patterns: [/\beuroleague\b/i] },
+  { source: "sports", block: "euroleague", subsection: "anadolu_efes", patterns: [/\banadolu efes\b/i] },
+  { source: "sports", block: "euroleague", subsection: "as_monaco", patterns: [/\bas monaco\b/i] },
+  { source: "sports", block: "euroleague", subsection: "baskonia", patterns: [/\bbaskonia\b/i] },
+  { source: "sports", block: "euroleague", subsection: "crvena_zvezda", patterns: [/\bcrvena\b/i, /\bzvezda\b/i] },
+  { source: "sports", block: "euroleague", subsection: "fenerbahce", patterns: [/\bfenerbahce\b/i] },
+  { source: "sports", block: "euroleague", subsection: "fc_barcelona", patterns: [/\bbarcelona\b/i] },
+  { source: "sports", block: "euroleague", subsection: "bayern_munich", patterns: [/\bbayern\b/i] },
+  { source: "sports", block: "euroleague", subsection: "maccabi_tel_aviv", patterns: [/\bmaccabi\b/i] },
+  { source: "sports", block: "euroleague", subsection: "olimpia_milano", patterns: [/\bolimpia milano\b/i, /\bmilano\b/i] },
+  { source: "sports", block: "euroleague", subsection: "olympiacos", patterns: [/\bolympiacos\b/i] },
+  { source: "sports", block: "euroleague", subsection: "panathinaikos", patterns: [/\bpanathinaikos\b/i] },
+  { source: "sports", block: "euroleague", subsection: "paris_basketball", patterns: [/\bparis basketball\b/i] },
+  { source: "sports", block: "euroleague", subsection: "partizan", patterns: [/\bpartizan\b/i] },
+  { source: "sports", block: "euroleague", subsection: "real_madrid", patterns: [/\breal madrid\b/i] },
+  { source: "sports", block: "euroleague", subsection: "valencia_basket", patterns: [/\bvalencia\b/i] },
+  { source: "sports", block: "euroleague", subsection: "virtus_bologna", patterns: [/\bvirtus\b/i, /\bbologna\b/i] },
+  { source: "sports", block: "euroleague", subsection: "zalgiris", patterns: [/\bzalgiris\b/i] },
+  { source: "sports", block: "euroleague", subsection: "asvel", patterns: [/\basvel\b/i] },
+  { source: "sports", block: "euroleague", subsection: "hapoel_tel_aviv", patterns: [/\bhapoel\b/i] },
+  { source: "sports", block: "euroleague", subsection: "dubai_bc", patterns: [/\bdubai bc\b/i, /\bdubai\b/i] },
+
+  {
+    source: "sports",
+    block: "european_football",
+    subsection: "champions_league",
+    patterns: [/\bchampions league\b/i]
+  },
+  { source: "sports", block: "european_football", subsection: "europa_league", patterns: [/\beuropa league\b/i] },
+  {
+    source: "sports",
+    block: "european_football",
+    subsection: "conference_league",
+    patterns: [/\bconference league\b/i]
+  },
+  { source: "sports", block: "european_football", subsection: "premier_league", patterns: [/\bpremier league\b/i] },
+  { source: "sports", block: "european_football", subsection: "la_liga", patterns: [/\bla liga\b/i] },
+  { source: "sports", block: "european_football", subsection: "serie_a", patterns: [/\bserie a\b/i] },
+  { source: "sports", block: "european_football", subsection: "ligue_1", patterns: [/\bligue 1\b/i] },
+  { source: "sports", block: "european_football", subsection: "bundesliga", patterns: [/\bbundesliga\b/i] },
+
+  { source: "sports", block: "national_football", subsection: "euro", patterns: [/\buefa euro\b/i, /\beuro\b/i] },
+  { source: "sports", block: "national_football", subsection: "world_cup", patterns: [/\bworld cup\b/i] },
+  {
+    source: "sports",
+    block: "national_football",
+    subsection: "nations_league",
+    patterns: [/\bnations league\b/i]
+  },
+  {
+    source: "sports",
+    block: "national_football",
+    subsection: "copa_africa",
+    patterns: [/\bcopa africa\b/i, /\bafrica cup\b/i]
+  },
+  {
+    source: "sports",
+    block: "national_football",
+    subsection: "copa_america",
+    patterns: [/\bcopa america\b/i]
+  }
 ];
 
 function splitSentences(text: string): string[] {
@@ -27,9 +244,29 @@ function splitSentences(text: string): string[] {
     .filter(Boolean);
 }
 
-function classifySentence(sentence: string, fallback: TargetKey): TargetKey {
-  const matched = TARGET_RULES.find((rule) => rule.patterns.some((pattern) => pattern.test(sentence)));
-  return matched?.key ?? fallback;
+function classifySentence(sentence: string, source: SourceBucket): { block: CoverBlock; subsection: string } {
+  const matched = TARGET_RULES.find(
+    (rule) => rule.source === source && rule.patterns.every((pattern) => pattern.test(sentence))
+  );
+
+  if (matched) {
+    return {
+      block: matched.block,
+      subsection: matched.subsection
+    };
+  }
+
+  if (source === "news") {
+    return { block: "news", subsection: sectionDefaultSubsection("news") };
+  }
+  if (source === "tech") {
+    return { block: "tech", subsection: sectionDefaultSubsection("tech") };
+  }
+
+  return {
+    block: "match_center",
+    subsection: sectionDefaultSubsection("match_center")
+  };
 }
 
 function sentenceToHeadline(sentence: string): string {
@@ -67,7 +304,7 @@ function extractSourceNames(text: string): string[] {
     .split(/,|\band\b/i)
     .map((part) => part.trim().replace(/[.;]$/, ""))
     .filter(Boolean)
-    .slice(0, 6);
+    .slice(0, 8);
 }
 
 function toSourceLinks(sourceNames: string[]): Array<{ title: string; url: string; publisher?: string }> {
@@ -78,63 +315,70 @@ function toSourceLinks(sourceNames: string[]): Array<{ title: string; url: strin
   }));
 }
 
-function pushToSection(issue: DailyIssue, key: TargetKey, item: BriefItem) {
-  const [section, subsection] = key.split(".") as ["news" | "tech", string];
-  const target = (issue.sections[section] as Record<string, Subsection>)[subsection];
-  target.items.push(item);
+function createAutoLabelFromKey(key: string) {
+  return key
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function ensureSubsection(issue: DailyIssue, block: CoverBlock, subsectionKey: string): Subsection {
+  const section = issue.sections[block];
+  if (!section[subsectionKey]) {
+    section[subsectionKey] = {
+      label: createAutoLabelFromKey(subsectionKey),
+      items: []
+    };
+  }
+
+  return section[subsectionKey];
+}
+
+function pushToSection(issue: DailyIssue, block: CoverBlock, subsectionKey: string, item: BriefItem) {
+  const subsection = ensureSubsection(issue, block, subsectionKey);
+  subsection.items.push(item);
 }
 
 function fillNarratives(issue: DailyIssue) {
-  const setNarrative = (subsection: Subsection) => {
-    if (subsection.items.length === 0) {
-      subsection.narrative = "No major updates were captured for this subsection in the latest automation feed.";
-      return;
-    }
+  SECTION_DEFINITIONS.forEach((section) => {
+    Object.values(issue.sections[section.key]).forEach((subsection) => {
+      if (subsection.items.length === 0) {
+        subsection.narrative = "No major updates were captured for this subsection in the latest automation feed.";
+        return;
+      }
 
-    const top = subsection.items.slice(0, 2).map((item) => item.headline).join("; ");
-    subsection.narrative = `What happened: ${top}. Why it matters: this can change near-term priorities and execution timing. Watch: confirmation from primary sources and concrete next steps.`;
-  };
-
-  setNarrative(issue.sections.news.cyprus);
-  setNarrative(issue.sections.news.greece);
-  setNarrative(issue.sections.news.world);
-  setNarrative(issue.sections.tech.cs);
-  setNarrative(issue.sections.tech.programming);
-  setNarrative(issue.sections.tech.ai_llm);
-  setNarrative(issue.sections.tech.other);
+      const top = subsection.items.slice(0, 2).map((item) => item.headline).join("; ");
+      subsection.narrative =
+        `What happened: ${top}. Why it matters: this can change near-term priorities and execution timing. ` +
+        "Watch: confirmation from primary sources and concrete next steps.";
+    });
+  });
 }
 
 function totalItems(issue: DailyIssue) {
-  return [
-    issue.sections.news.cyprus,
-    issue.sections.news.greece,
-    issue.sections.news.world,
-    issue.sections.tech.cs,
-    issue.sections.tech.programming,
-    issue.sections.tech.ai_llm,
-    issue.sections.tech.other
-  ].reduce((acc, subsection) => acc + subsection.items.length, 0);
+  return SECTION_DEFINITIONS.reduce((acc, section) => {
+    return acc + Object.values(issue.sections[section.key]).reduce((inner, subsection) => inner + subsection.items.length, 0);
+  }, 0);
 }
 
-export function parseWithoutLLM(issue: DailyIssue, input: { newsText: string; techText: string }) {
+function processText(issue: DailyIssue, source: SourceBucket, text: string, sourceLinks: Array<{ title: string; url: string; publisher?: string }>) {
+  splitSentences(text)
+    .filter((sentence) => !/^sources?:/i.test(sentence))
+    .forEach((sentence) => {
+      const target = classifySentence(sentence, source);
+      const subsection = ensureSubsection(issue, target.block, target.subsection);
+      pushToSection(issue, target.block, target.subsection, buildItem(sentence, subsection.label, sourceLinks));
+    });
+}
+
+export function parseWithoutLLM(issue: DailyIssue, input: { newsText: string; techText: string; sportsText?: string }) {
   const newsSources = toSourceLinks(extractSourceNames(input.newsText));
   const techSources = toSourceLinks(extractSourceNames(input.techText));
+  const sportsSources = toSourceLinks(extractSourceNames(input.sportsText ?? ""));
 
-  splitSentences(input.newsText)
-    .filter((sentence) => !/^sources?:/i.test(sentence))
-    .forEach((sentence) => {
-      const key = classifySentence(sentence, "news.world");
-      const safeKey: TargetKey = key.startsWith("news.") ? key : "news.world";
-      pushToSection(issue, safeKey, buildItem(sentence, issue.sections.news[safeKey.split(".")[1] as keyof DailyIssue["sections"]["news"]].label, newsSources));
-    });
-
-  splitSentences(input.techText)
-    .filter((sentence) => !/^sources?:/i.test(sentence))
-    .forEach((sentence) => {
-      const key = classifySentence(sentence, "tech.other");
-      const safeKey: TargetKey = key.startsWith("tech.") ? key : "tech.other";
-      pushToSection(issue, safeKey, buildItem(sentence, issue.sections.tech[safeKey.split(".")[1] as keyof DailyIssue["sections"]["tech"]].label, techSources));
-    });
+  processText(issue, "news", input.newsText, newsSources);
+  processText(issue, "tech", input.techText, techSources);
+  processText(issue, "sports", input.sportsText ?? "", sportsSources);
 
   fillNarratives(issue);
   issue.status = totalItems(issue) > 0 ? "ready" : "partial";

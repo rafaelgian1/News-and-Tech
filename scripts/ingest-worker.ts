@@ -7,7 +7,7 @@ const schedule = process.env.INGEST_CRON ?? "5 7 * * *";
 async function runIngest(date: string) {
   const feed = await loadAutomationFeed(date);
 
-  if (!feed || (!feed.newsText.trim() && !feed.techText.trim())) {
+  if (!feed || (!feed.newsText.trim() && !feed.techText.trim() && !feed.sportsText.trim())) {
     console.warn(`[worker] No automation payload for ${date}`);
     return;
   }
@@ -15,7 +15,8 @@ async function runIngest(date: string) {
   const issue = await ingestDailyIssue({
     date,
     newsText: feed.newsText,
-    techText: feed.techText
+    techText: feed.techText,
+    sportsText: feed.sportsText
   });
 
   console.log(`[worker] Ingested ${issue.date} (${issue.status})`);

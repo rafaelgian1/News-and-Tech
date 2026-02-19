@@ -1,11 +1,9 @@
 import { parseWithoutLLM } from "@/lib/fallbackParser";
+import { createEmptyIssue, listAllSubsections, normalizeIssue } from "@/lib/issueShape";
 import { callJsonLLM } from "@/lib/llm";
 import { promptA_automationToIssueJSON, promptB_issueToNarrative } from "@/lib/prompts";
-import { BriefItem, DailyIssue, IngestPayload, Subsection } from "@/lib/types";
-
-function safeArray<T>(value: unknown): T[] {
-  return Array.isArray(value) ? (value as T[]) : [];
-}
+import { SECTION_ORDER } from "@/lib/sections";
+import { DailyIssue, IngestPayload, Subsection } from "@/lib/types";
 
 function estimateReadTimeMinutes(subsection: Subsection) {
   const text = subsection.items
@@ -18,139 +16,57 @@ function estimateReadTimeMinutes(subsection: Subsection) {
 
 function attachReadTimes(issue: DailyIssue): DailyIssue {
   const next = structuredClone(issue);
-
-  const subsectionList: Subsection[] = [
-    next.sections.news.cyprus,
-    next.sections.news.greece,
-    next.sections.news.world,
-    next.sections.tech.cs,
-    next.sections.tech.programming,
-    next.sections.tech.ai_llm,
-    next.sections.tech.other
-  ];
-
-  subsectionList.forEach((s) => {
-    s.readTimeMinutes = estimateReadTimeMinutes(s);
+  listAllSubsections(next).forEach((subsection) => {
+    subsection.readTimeMinutes = estimateReadTimeMinutes(subsection);
   });
-
   return next;
 }
 
-function sanitizeItems(input: unknown): BriefItem[] {
-  if (!Array.isArray(input)) {
-    return [];
-  }
-
-  return input
-    .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
-    .map((item) => ({
-      headline: typeof item.headline === "string" ? item.headline : "Untitled update",
-      keyFacts: safeArray<string>(item.keyFacts).filter((v): v is string => typeof v === "string"),
-      analysis: typeof item.analysis === "string" ? item.analysis : "",
-      implications: safeArray<string>(item.implications).filter((v): v is string => typeof v === "string"),
-      watchNext: safeArray<string>(item.watchNext).filter((v): v is string => typeof v === "string"),
-      credibilityNotes: typeof item.credibilityNotes === "string" ? item.credibilityNotes : undefined,
-      sources: safeArray<Record<string, unknown>>(item.sources).reduce<Array<{ title: string; url: string; publisher?: string }>>(
-        (acc, source) => {
-          if (typeof source.url !== "string") {
-            return acc;
-          }
-
-          acc.push({
-            title: typeof source.title === "string" ? source.title : source.url,
-            url: source.url,
-            publisher: typeof source.publisher === "string" ? source.publisher : undefined
-          });
-
-          return acc;
-        },
-        []
-      )
-    }));
-}
-
-function emptySubsection(label: string): Subsection {
-  return {
-    label,
-    items: []
-  };
-}
-
-function buildEmptyIssue(date: string): DailyIssue {
-  return {
-    date,
-    status: "missing",
-    sections: {
-      news: {
-        cyprus: emptySubsection("Cyprus"),
-        greece: emptySubsection("Greece"),
-        world: emptySubsection("Worldwide")
-      },
-      tech: {
-        cs: emptySubsection("Computer Science"),
-        programming: emptySubsection("Programming"),
-        ai_llm: emptySubsection("AI/LLMs"),
-        other: emptySubsection("Engineering")
-      }
-    },
-    covers: {
-      news: {
-        block: "news",
-        imageUrl: "",
-        prompt: "",
-        keywords: []
-      },
-      tech: {
-        block: "tech",
-        imageUrl: "",
-        prompt: "",
-        keywords: []
-      }
-    }
-  };
-}
-
-function normalizeIssue(raw: unknown, date: string): DailyIssue {
-  const issue = buildEmptyIssue(date);
-  if (!raw || typeof raw !== "object") {
+function attachNarratives(issue: DailyIssue, narrativeRaw: unknown) {
+  if (!narrativeRaw || typeof narrativeRaw !== "object") {
     return issue;
   }
 
-  const obj = raw as Record<string, unknown>;
-  issue.status = (obj.status as DailyIssue["status"]) ?? "partial";
+  const root = narrativeRaw as Record<string, unknown>;
+  const sectionsRoot =
+    root.sections && typeof root.sections === "object" ? (root.sections as Record<string, unknown>) : (root as Record<string, unknown>);
 
-  const sections = (obj.sections ?? {}) as Record<string, unknown>;
-  const news = (sections.news ?? {}) as Record<string, unknown>;
-  const tech = (sections.tech ?? {}) as Record<string, unknown>;
+  SECTION_ORDER.forEach((block) => {
+    const sectionTarget = issue.sections[block];
+    const sectionNarrative =
+      sectionsRoot[block] && typeof sectionsRoot[block] === "object"
+        ? (sectionsRoot[block] as Record<string, unknown>)
+        : undefined;
 
-  const inject = (target: Subsection, value: unknown) => {
-    if (!value || typeof value !== "object") {
+    if (!sectionNarrative) {
       return;
     }
 
-    const v = value as Record<string, unknown>;
-    target.label = typeof v.label === "string" ? v.label : target.label;
-    target.items = sanitizeItems(v.items);
-    target.narrative = typeof v.narrative === "string" ? v.narrative : target.narrative;
-  };
+    Object.entries(sectionTarget).forEach(([subsectionKey, subsection]) => {
+      const row = sectionNarrative[subsectionKey];
+      if (!row || typeof row !== "object") {
+        return;
+      }
 
-  inject(issue.sections.news.cyprus, news.cyprus);
-  inject(issue.sections.news.greece, news.greece);
-  inject(issue.sections.news.world, news.world);
-
-  inject(issue.sections.tech.cs, tech.cs);
-  inject(issue.sections.tech.programming, tech.programming);
-  inject(issue.sections.tech.ai_llm, tech.ai_llm);
-  inject(issue.sections.tech.other, tech.other);
+      const value = row as Record<string, unknown>;
+      if (typeof value.narrative === "string") {
+        subsection.narrative = value.narrative;
+      }
+    });
+  });
 
   return issue;
 }
 
 export async function parseAutomationPayload(payload: IngestPayload): Promise<DailyIssue> {
   const date = payload.date ?? new Date().toISOString().slice(0, 10);
-  const empty = buildEmptyIssue(date);
+  const empty = createEmptyIssue(date);
 
-  if (!payload.newsText.trim() && !payload.techText.trim()) {
+  const newsText = payload.newsText ?? "";
+  const techText = payload.techText ?? "";
+  const sportsText = payload.sportsText ?? "";
+
+  if (!newsText.trim() && !techText.trim() && !sportsText.trim()) {
     return empty;
   }
 
@@ -161,49 +77,36 @@ export async function parseAutomationPayload(payload: IngestPayload): Promise<Da
     const raw = await callJsonLLM(
       promptA_automationToIssueJSON({
         date,
-        newsText: payload.newsText,
-        techText: payload.techText
+        newsText,
+        techText,
+        sportsText
       })
     );
 
     parsed = normalizeIssue(raw, date);
   } catch {
     parsed = parseWithoutLLM(parsed, {
-      newsText: payload.newsText,
-      techText: payload.techText
+      newsText,
+      techText,
+      sportsText
     });
     usedFallback = true;
   }
 
   if (!usedFallback) {
     try {
-      const narrative = (await callJsonLLM(promptB_issueToNarrative(parsed))) as {
-        news?: Record<string, { narrative?: string }>;
-        tech?: Record<string, { narrative?: string }>;
-      };
-
-      const setNarrative = (subsection: Subsection, value?: { narrative?: string }) => {
-        if (value?.narrative) {
-          subsection.narrative = value.narrative;
-        }
-      };
-
-      setNarrative(parsed.sections.news.cyprus, narrative.news?.cyprus);
-      setNarrative(parsed.sections.news.greece, narrative.news?.greece);
-      setNarrative(parsed.sections.news.world, narrative.news?.world);
-      setNarrative(parsed.sections.tech.cs, narrative.tech?.cs);
-      setNarrative(parsed.sections.tech.programming, narrative.tech?.programming);
-      setNarrative(parsed.sections.tech.ai_llm, narrative.tech?.ai_llm);
-      setNarrative(parsed.sections.tech.other, narrative.tech?.other);
+      const narrative = await callJsonLLM(promptB_issueToNarrative(parsed));
+      parsed = attachNarratives(parsed, narrative);
     } catch {
       parsed = parseWithoutLLM(parsed, {
-        newsText: payload.newsText,
-        techText: payload.techText
+        newsText,
+        techText,
+        sportsText
       });
     }
   }
 
-  parsed.rawAutomationInput = `${payload.newsText}\n\n${payload.techText}`;
+  parsed.rawAutomationInput = `${newsText}\n\n${techText}\n\n${sportsText}`.trim();
 
   return attachReadTimes(parsed);
 }

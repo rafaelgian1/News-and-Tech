@@ -1,3 +1,5 @@
+import { subsectionLabelGreekMap } from "@/lib/sections";
+
 export type AppLanguage = "en" | "el";
 
 export const LANGUAGE_OPTIONS: Array<{ value: AppLanguage; label: string }> = [
@@ -17,6 +19,12 @@ const DICT: Record<AppLanguage, Record<string, string>> = {
     last7Days: "Last 7 days",
     news: "News",
     tech: "Tech",
+    cyprusFootball: "Cyprus Football",
+    greekSuperLeague: "Greek Super League",
+    euroleague: "EuroLeague",
+    europeanFootball: "European Football",
+    nationalFootball: "National Football",
+    matchCenter: "Match Center",
     noBriefForDate: "No brief available for {date}",
     feedMissing: "The automation feed is missing or delayed. You can retry ingestion for this day.",
     retryIngestion: "Retry ingestion",
@@ -55,6 +63,12 @@ const DICT: Record<AppLanguage, Record<string, string>> = {
     last7Days: "Τελευταίες 7 ημέρες",
     news: "Ειδήσεις",
     tech: "Τεχνολογία",
+    cyprusFootball: "Κυπριακό Ποδόσφαιρο",
+    greekSuperLeague: "Ελληνική Super League",
+    euroleague: "EuroLeague",
+    europeanFootball: "Ευρωπαϊκό Ποδόσφαιρο",
+    nationalFootball: "Εθνικές Ομάδες",
+    matchCenter: "Κέντρο Αγώνων",
     noBriefForDate: "Δεν υπάρχει σύνοψη για {date}",
     feedMissing: "Η ροή αυτοματισμού λείπει ή έχει καθυστέρηση. Μπορείς να δοκιμάσεις ξανά για αυτή την ημέρα.",
     retryIngestion: "Επανάληψη λήψης",
@@ -85,24 +99,8 @@ const DICT: Record<AppLanguage, Record<string, string>> = {
 };
 
 const SUBSECTION_LABELS: Record<AppLanguage, Record<string, string>> = {
-  en: {
-    Cyprus: "Cyprus",
-    Greece: "Greece",
-    Worldwide: "Worldwide",
-    "Computer Science": "Computer Science",
-    Programming: "Programming",
-    "AI/LLMs": "AI/LLMs",
-    Engineering: "Engineering"
-  },
-  el: {
-    Cyprus: "Κύπρος",
-    Greece: "Ελλάδα",
-    Worldwide: "Κόσμος",
-    "Computer Science": "Επιστήμη Υπολογιστών",
-    Programming: "Προγραμματισμός",
-    "AI/LLMs": "AI/LLM",
-    Engineering: "Μηχανική"
-  }
+  en: {},
+  el: subsectionLabelGreekMap()
 };
 
 export function t(lang: AppLanguage, key: string, vars?: Record<string, string>) {

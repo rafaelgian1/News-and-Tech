@@ -7,7 +7,7 @@ async function main() {
 
   const feed = await loadAutomationFeed(date);
 
-  if (!feed || (!feed.newsText.trim() && !feed.techText.trim())) {
+  if (!feed || (!feed.newsText.trim() && !feed.techText.trim() && !feed.sportsText.trim())) {
     console.error(`[daily-ingest] Missing automation content for ${date}`);
     process.exit(1);
   }
@@ -15,7 +15,8 @@ async function main() {
   const issue = await ingestDailyIssue({
     date,
     newsText: feed.newsText,
-    techText: feed.techText
+    techText: feed.techText,
+    sportsText: feed.sportsText
   });
 
   console.log(`[daily-ingest] Ingested issue ${issue.date} with status ${issue.status}`);

@@ -1,9 +1,31 @@
 import { DailyIssue } from "@/lib/types";
+import { SECTION_DEFINITIONS } from "@/lib/sections";
+
+function issueSectionsSchemaExample() {
+  return SECTION_DEFINITIONS.map((section) => {
+    const subsectionLines = section.subsections
+      .map((subsection) => `      "${subsection.key}": { "label": "${subsection.label}", "items": [BriefItem] }`)
+      .join(",\n");
+
+    return `    "${section.key}": {\n${subsectionLines}\n    }`;
+  }).join(",\n");
+}
+
+function narrativeShapeExample() {
+  return SECTION_DEFINITIONS.map((section) => {
+    const subsectionLines = section.subsections
+      .map((subsection) => `      "${subsection.key}": { "narrative": "..." }`)
+      .join(",\n");
+
+    return `    "${section.key}": {\n${subsectionLines}\n    }`;
+  }).join(",\n");
+}
 
 export function promptA_automationToIssueJSON(input: {
   date: string;
   newsText: string;
   techText: string;
+  sportsText: string;
 }) {
   return `You are an editor-engine for a premium daily brief app.
 
@@ -18,22 +40,14 @@ OUTPUT RULES
 - Keep facts grounded in the input. Do not invent claims.
 - If data is missing, leave fields empty arrays or use concise uncertainty notes.
 - Preserve citations where possible.
+- For match_center entries, include Athens time (Europe/Athens) for upcoming fixtures.
+- For matches already completed on the selected date, include final score/result in key facts.
 
 TARGET JSON SCHEMA
 {
   "date": "YYYY-MM-DD",
   "sections": {
-    "news": {
-      "cyprus": { "label": "Cyprus", "items": [BriefItem] },
-      "greece": { "label": "Greece", "items": [BriefItem] },
-      "world": { "label": "Worldwide", "items": [BriefItem] }
-    },
-    "tech": {
-      "cs": { "label": "Computer Science", "items": [BriefItem] },
-      "programming": { "label": "Programming", "items": [BriefItem] },
-      "ai_llm": { "label": "AI/LLMs", "items": [BriefItem] },
-      "other": { "label": "Engineering", "items": [BriefItem] }
-    }
+${issueSectionsSchemaExample()}
   },
   "status": "ready|partial|missing"
 }
@@ -53,7 +67,10 @@ SOURCE MATERIAL - NEWS
 ${input.newsText}
 
 SOURCE MATERIAL - TECH
-${input.techText}`;
+${input.techText}
+
+SOURCE MATERIAL - SPORTS
+${input.sportsText}`;
 }
 
 export function promptB_issueToNarrative(input: DailyIssue) {
@@ -65,16 +82,8 @@ Using the provided structured DailyIssue JSON, enrich each subsection with a "na
 REQUIRED SHAPE
 Return only JSON with this shape:
 {
-  "news": {
-    "cyprus": { "narrative": "..." },
-    "greece": { "narrative": "..." },
-    "world": { "narrative": "..." }
-  },
-  "tech": {
-    "cs": { "narrative": "..." },
-    "programming": { "narrative": "..." },
-    "ai_llm": { "narrative": "..." },
-    "other": { "narrative": "..." }
+  "sections": {
+${narrativeShapeExample()}
   }
 }
 
@@ -90,23 +99,34 @@ INPUT JSON
 ${JSON.stringify(input)}`;
 }
 
+function coverStyle(block: string) {
+  if (block === "news") {
+    return "tasteful abstract editorial style, no photorealistic faces";
+  }
+
+  if (block === "tech") {
+    return "modern minimal tech illustration style";
+  }
+
+  if (block === "match_center" || block === "euroleague") {
+    return "clean high-contrast sports broadcast infographic style, minimal, no logos";
+  }
+
+  return "premium newspaper sports illustration style, dynamic but clean, no text";
+}
+
 export function promptC_coverPromptBuilder(input: {
   date: string;
-  block: "news" | "tech";
+  block: string;
   topKeywords: string[];
 }) {
-  const style =
-    input.block === "news"
-      ? "tasteful abstract editorial style, no photorealistic faces"
-      : "modern minimal tech illustration style";
-
   return `Create an image-generation prompt for a Daily Brief cover image.
 
 Constraints:
 - Date context: ${input.date}
 - Block: ${input.block}
 - Top keywords: ${input.topKeywords.join(", ")}
-- Visual style: ${style}
+- Visual style: ${coverStyle(input.block)}
 - Clean composition, high contrast, no text on image.
 - Professional newspaper/Notion hybrid aesthetic.
 - No logos, no watermarks.

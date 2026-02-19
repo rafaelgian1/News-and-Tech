@@ -21,21 +21,17 @@ export type Subsection = {
   readTimeMinutes?: number;
 };
 
-export type SectionSet = {
-  news: {
-    cyprus: Subsection;
-    greece: Subsection;
-    world: Subsection;
-  };
-  tech: {
-    cs: Subsection;
-    programming: Subsection;
-    ai_llm: Subsection;
-    other: Subsection;
-  };
-};
+export type CoverBlock =
+  | "news"
+  | "tech"
+  | "cyprus_football"
+  | "greek_super_league"
+  | "euroleague"
+  | "european_football"
+  | "national_football"
+  | "match_center";
 
-export type CoverBlock = "news" | "tech";
+export type SectionSet = Record<CoverBlock, Record<string, Subsection>>;
 
 export type CoverImage = {
   block: CoverBlock;
@@ -47,10 +43,7 @@ export type CoverImage = {
 export type DailyIssue = {
   date: string;
   sections: SectionSet;
-  covers: {
-    news: CoverImage;
-    tech: CoverImage;
-  };
+  covers: Partial<Record<CoverBlock, CoverImage>>;
   rawAutomationInput?: string;
   status: "ready" | "partial" | "missing";
   createdAt?: string;
@@ -61,4 +54,5 @@ export type IngestPayload = {
   date?: string;
   newsText: string;
   techText: string;
+  sportsText?: string;
 };

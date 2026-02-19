@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { formatHumanDate } from "@/lib/date";
+import { firstHeadline } from "@/lib/issueShape";
 import { getArchiveWindow } from "@/lib/service";
 
 export default async function ArchivePage() {
@@ -23,9 +24,7 @@ export default async function ArchivePage() {
             <li key={issue.date}>
               <Link href={`/?date=${issue.date}`}>
                 <strong>{formatHumanDate(issue.date)}</strong>
-                <span>
-                  {issue.sections.news.world.items[0]?.headline ?? issue.sections.tech.ai_llm.items[0]?.headline ?? "Open issue"}
-                </span>
+                <span>{firstHeadline(issue) ?? "Open issue"}</span>
               </Link>
             </li>
           ))}

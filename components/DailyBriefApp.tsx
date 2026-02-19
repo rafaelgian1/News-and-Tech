@@ -7,7 +7,8 @@ import { BlockCard } from "@/components/BlockCard";
 import { EmptyState } from "@/components/EmptyState";
 import { formatHumanDate } from "@/lib/date";
 import { AppLanguage, LANGUAGE_OPTIONS, localeForLanguage, t } from "@/lib/i18n";
-import { DailyIssue } from "@/lib/types";
+import { SECTION_ORDER, sectionTitleKey } from "@/lib/sections";
+import { CoverBlock, DailyIssue } from "@/lib/types";
 
 type Props = {
   selectedDate: string;
@@ -16,11 +17,20 @@ type Props = {
   requestedDateFound: boolean;
 };
 
+function initialVisibility() {
+  return SECTION_ORDER.reduce(
+    (acc, block) => {
+      acc[block] = true;
+      return acc;
+    },
+    {} as Record<CoverBlock, boolean>
+  );
+}
+
 export function DailyBriefApp({ selectedDate, issue, quickDays, requestedDateFound }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [showNews, setShowNews] = useState(true);
-  const [showTech, setShowTech] = useState(true);
+  const [visibleBlocks, setVisibleBlocks] = useState<Record<CoverBlock, boolean>>(initialVisibility);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [language, setLanguage] = useState<AppLanguage>("en");
   const [isIngestingSelectedDate, setIsIngestingSelectedDate] = useState(false);
@@ -58,6 +68,13 @@ export function DailyBriefApp({ selectedDate, issue, quickDays, requestedDateFou
   const onLanguageChange = (next: AppLanguage) => {
     setLanguage(next);
     window.localStorage.setItem("daily-brief-language", next);
+  };
+
+  const toggleBlock = (block: CoverBlock) => {
+    setVisibleBlocks((prev) => ({
+      ...prev,
+      [block]: !prev[block]
+    }));
   };
 
   const ingestSelectedDayNow = async () => {
@@ -148,12 +165,11 @@ export function DailyBriefApp({ selectedDate, issue, quickDays, requestedDateFou
       </section>
 
       <section className="quick-filters">
-        <button type="button" onClick={() => setShowNews((v) => !v)} className={showNews ? "active" : ""}>
-          {t(language, "news")}
-        </button>
-        <button type="button" onClick={() => setShowTech((v) => !v)} className={showTech ? "active" : ""}>
-          {t(language, "tech")}
-        </button>
+        {SECTION_ORDER.map((block) => (
+          <button type="button" key={block} onClick={() => toggleBlock(block)} className={visibleBlocks[block] ? "active" : ""}>
+            {t(language, sectionTitleKey(block))}
+          </button>
+        ))}
       </section>
 
       {!requestedDateFound && issue ? (
@@ -172,8 +188,17 @@ export function DailyBriefApp({ selectedDate, issue, quickDays, requestedDateFou
         <EmptyState date={selectedDate} language={language} />
       ) : (
         <section className="block-grid">
-          <BlockCard issue={issue} block="news" title={t(language, "news")} search={search} visible={showNews} language={language} />
-          <BlockCard issue={issue} block="tech" title={t(language, "tech")} search={search} visible={showTech} language={language} />
+          {SECTION_ORDER.map((block) => (
+            <BlockCard
+              key={block}
+              issue={issue}
+              block={block}
+              title={t(language, sectionTitleKey(block))}
+              search={search}
+              visible={visibleBlocks[block]}
+              language={language}
+            />
+          ))}
         </section>
       )}
     </main>

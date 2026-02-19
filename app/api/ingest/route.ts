@@ -34,18 +34,19 @@ async function runIngest(body: IngestPayload) {
 
   let newsText = body.newsText ?? "";
   let techText = body.techText ?? "";
+  let sportsText = body.sportsText ?? "";
 
-  if (!newsText.trim() && !techText.trim()) {
+  if (!newsText.trim() && !techText.trim() && !sportsText.trim()) {
     let feed = await loadAutomationFeed(date);
 
-    if (!feed || (!feed.newsText.trim() && !feed.techText.trim())) {
+    if (!feed || (!feed.newsText.trim() && !feed.techText.trim() && !feed.sportsText.trim())) {
       const allowAuto = (process.env.AUTO_GENERATE_DAILY_BRIEF ?? "true").toLowerCase() !== "false";
       if (allowAuto) {
         feed = await generateAutomationFeedFromLLM(date);
       }
     }
 
-    if (!feed || (!feed.newsText.trim() && !feed.techText.trim())) {
+    if (!feed || (!feed.newsText.trim() && !feed.techText.trim() && !feed.sportsText.trim())) {
       return NextResponse.json(
         {
           error: "Automation feed missing for selected day",
@@ -58,13 +59,15 @@ async function runIngest(body: IngestPayload) {
 
     newsText = feed.newsText;
     techText = feed.techText;
+    sportsText = feed.sportsText;
   }
 
   try {
     const issue = await ingestDailyIssue({
       date,
       newsText,
-      techText
+      techText,
+      sportsText
     });
 
     return NextResponse.json({ issue }, { status: 201 });
@@ -95,7 +98,8 @@ export async function GET(request: NextRequest) {
   return runIngest({
     date: request.nextUrl.searchParams.get("date") ?? undefined,
     newsText: "",
-    techText: ""
+    techText: "",
+    sportsText: ""
   });
 }
 
@@ -105,7 +109,7 @@ export async function POST(request: NextRequest) {
   try {
     body = (await request.json()) as IngestPayload;
   } catch {
-    body = { date: undefined, newsText: "", techText: "" };
+    body = { date: undefined, newsText: "", techText: "", sportsText: "" };
   }
 
   return runIngest(body);

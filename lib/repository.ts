@@ -1,4 +1,5 @@
 import { getPg, getSqliteDb, usingPostgres } from "@/lib/db";
+import { listItemsForBlock, normalizeIssue } from "@/lib/issueShape";
 import { createCoverAsset } from "@/lib/image";
 import { CoverBlock, DailyIssue } from "@/lib/types";
 
@@ -7,7 +8,8 @@ function nowIso() {
 }
 
 function parseIssue(json: string): DailyIssue {
-  return JSON.parse(json) as DailyIssue;
+  const raw = JSON.parse(json) as unknown;
+  return normalizeIssue(raw);
 }
 
 function dayDiff(from: string, to: string) {
@@ -17,19 +19,7 @@ function dayDiff(from: string, to: string) {
 }
 
 function extractTopKeywords(issue: DailyIssue, block: CoverBlock): string[] {
-  const items =
-    block === "news"
-      ? [
-          ...issue.sections.news.cyprus.items,
-          ...issue.sections.news.greece.items,
-          ...issue.sections.news.world.items
-        ]
-      : [
-          ...issue.sections.tech.cs.items,
-          ...issue.sections.tech.programming.items,
-          ...issue.sections.tech.ai_llm.items,
-          ...issue.sections.tech.other.items
-        ];
+  const items = listItemsForBlock(issue, block);
 
   const tokens = items
     .slice(0, 6)
@@ -144,20 +134,30 @@ export async function getOrCreateCover(issue: DailyIssue, block: CoverBlock) {
   };
 }
 
-export async function saveIssue(issue: DailyIssue, rawInput: { newsText: string; techText: string }) {
+export async function saveIssue(issue: DailyIssue, rawInput: { newsText: string; techText: string; sportsText?: string }) {
   const now = nowIso();
 
   if (usingPostgres()) {
     const sql = await getPg();
     await sql`
-      INSERT INTO daily_issues (issue_date, issue_json, ingest_status, raw_input_news, raw_input_tech, created_at, updated_at)
-      VALUES (${issue.date}, ${JSON.stringify(issue)}, ${issue.status}, ${rawInput.newsText}, ${rawInput.techText}, ${now}, ${now})
+      INSERT INTO daily_issues (issue_date, issue_json, ingest_status, raw_input_news, raw_input_tech, raw_input_sports, created_at, updated_at)
+      VALUES (
+        ${issue.date},
+        ${JSON.stringify(issue)},
+        ${issue.status},
+        ${rawInput.newsText},
+        ${rawInput.techText},
+        ${rawInput.sportsText ?? ""},
+        ${now},
+        ${now}
+      )
       ON CONFLICT (issue_date)
       DO UPDATE SET
         issue_json = EXCLUDED.issue_json,
         ingest_status = EXCLUDED.ingest_status,
         raw_input_news = EXCLUDED.raw_input_news,
         raw_input_tech = EXCLUDED.raw_input_tech,
+        raw_input_sports = EXCLUDED.raw_input_sports,
         updated_at = EXCLUDED.updated_at
     `;
     return;
@@ -165,16 +165,17 @@ export async function saveIssue(issue: DailyIssue, rawInput: { newsText: string;
 
   const db = getSqliteDb();
   db.prepare(
-    `INSERT INTO daily_issues (issue_date, issue_json, ingest_status, raw_input_news, raw_input_tech, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO daily_issues (issue_date, issue_json, ingest_status, raw_input_news, raw_input_tech, raw_input_sports, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(issue_date)
      DO UPDATE SET
       issue_json = excluded.issue_json,
       ingest_status = excluded.ingest_status,
       raw_input_news = excluded.raw_input_news,
       raw_input_tech = excluded.raw_input_tech,
+      raw_input_sports = excluded.raw_input_sports,
       updated_at = excluded.updated_at`
-  ).run(issue.date, JSON.stringify(issue), issue.status, rawInput.newsText, rawInput.techText, now, now);
+  ).run(issue.date, JSON.stringify(issue), issue.status, rawInput.newsText, rawInput.techText, rawInput.sportsText ?? "", now, now);
 }
 
 export async function logIngest(issueDate: string, status: "success" | "error", errorMessage?: string) {
@@ -304,8 +305,9 @@ export async function rotateIntoArchive(today = new Date().toISOString().slice(0
         ingest_status: string;
         raw_input_news: string;
         raw_input_tech: string;
+        raw_input_sports: string;
       }>
-    >`SELECT issue_date, issue_json, ingest_status, raw_input_news, raw_input_tech FROM daily_issues`;
+    >`SELECT issue_date, issue_json, ingest_status, raw_input_news, raw_input_tech, raw_input_sports FROM daily_issues`;
 
     const stale = rows.filter((row) => dayDiff(row.issue_date, today) > 6);
     if (stale.length === 0) {
@@ -314,14 +316,23 @@ export async function rotateIntoArchive(today = new Date().toISOString().slice(0
 
     for (const row of stale) {
       await sql`
-        INSERT INTO archived_issues (issue_date, issue_json, ingest_status, raw_input_news, raw_input_tech, archived_at)
-        VALUES (${row.issue_date}, ${row.issue_json}, ${row.ingest_status}, ${row.raw_input_news}, ${row.raw_input_tech}, ${nowIso()})
+        INSERT INTO archived_issues (issue_date, issue_json, ingest_status, raw_input_news, raw_input_tech, raw_input_sports, archived_at)
+        VALUES (
+          ${row.issue_date},
+          ${row.issue_json},
+          ${row.ingest_status},
+          ${row.raw_input_news},
+          ${row.raw_input_tech},
+          ${row.raw_input_sports},
+          ${nowIso()}
+        )
         ON CONFLICT (issue_date)
         DO UPDATE SET
           issue_json = EXCLUDED.issue_json,
           ingest_status = EXCLUDED.ingest_status,
           raw_input_news = EXCLUDED.raw_input_news,
           raw_input_tech = EXCLUDED.raw_input_tech,
+          raw_input_sports = EXCLUDED.raw_input_sports,
           archived_at = EXCLUDED.archived_at
       `;
 
@@ -333,13 +344,14 @@ export async function rotateIntoArchive(today = new Date().toISOString().slice(0
 
   const db = getSqliteDb();
   const rows = db
-    .prepare("SELECT issue_date, issue_json, ingest_status, raw_input_news, raw_input_tech FROM daily_issues")
+    .prepare("SELECT issue_date, issue_json, ingest_status, raw_input_news, raw_input_tech, raw_input_sports FROM daily_issues")
     .all() as Array<{
     issue_date: string;
     issue_json: string;
     ingest_status: string;
     raw_input_news: string;
     raw_input_tech: string;
+    raw_input_sports: string;
   }>;
 
   const stale = rows.filter((row) => dayDiff(row.issue_date, today) > 6);
@@ -349,14 +361,22 @@ export async function rotateIntoArchive(today = new Date().toISOString().slice(0
 
   const insert = db.prepare(
     `INSERT OR REPLACE INTO archived_issues
-    (issue_date, issue_json, ingest_status, raw_input_news, raw_input_tech, archived_at)
-    VALUES (?, ?, ?, ?, ?, ?)`
+    (issue_date, issue_json, ingest_status, raw_input_news, raw_input_tech, raw_input_sports, archived_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
   const remove = db.prepare("DELETE FROM daily_issues WHERE issue_date = ?");
 
   const tx = db.transaction(() => {
     stale.forEach((row) => {
-      insert.run(row.issue_date, row.issue_json, row.ingest_status, row.raw_input_news, row.raw_input_tech, nowIso());
+      insert.run(
+        row.issue_date,
+        row.issue_json,
+        row.ingest_status,
+        row.raw_input_news,
+        row.raw_input_tech,
+        row.raw_input_sports,
+        nowIso()
+      );
       remove.run(row.issue_date);
     });
   });

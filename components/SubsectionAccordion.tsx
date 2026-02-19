@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { AppLanguage, localizeSubsectionLabel, t } from "@/lib/i18n";
-import { Subsection } from "@/lib/types";
+import { CoverBlock, Subsection } from "@/lib/types";
 
 type Props = {
   issueDate: string;
-  block: "news" | "tech";
+  block: CoverBlock;
   subsectionKey: string;
   subsection: Subsection;
   search: string;
@@ -58,7 +58,7 @@ function hashText(input: string) {
   return Math.abs(hash);
 }
 
-function articleImage(headline: string, block: "news" | "tech") {
+function articleImage(headline: string, block: CoverBlock) {
   const seed = hashText(`${block}:${headline}`);
   const hueBase = block === "news" ? 208 : 88;
   const hue = (hueBase + (seed % 36)) % 360;
