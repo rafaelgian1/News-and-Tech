@@ -28,8 +28,8 @@ export function BlockCard({ issue, block, title, search, visible, language }: Pr
     return Object.entries(issue.sections.tech) as Array<[string, Subsection]>;
   }, [block, issue.sections.news, issue.sections.tech]);
 
-  const cover = issue.covers[block];
   const strip = topHeadlines(subsectionEntries);
+  const coverUrl = block === "news" ? "/news.png" : "/tech.png";
 
   if (!visible) {
     return null;
@@ -38,11 +38,7 @@ export function BlockCard({ issue, block, title, search, visible, language }: Pr
   return (
     <section className="block-card">
       <div className="cover-wrap">
-        {cover.imageUrl ? (
-          <img src={cover.imageUrl} alt={`${title} cover for ${issue.date}`} className="cover-image" />
-        ) : (
-          <div className="cover-fallback">{t(language, "coverPending")}</div>
-        )}
+        <img src={coverUrl} alt={`${title} cover for ${issue.date}`} className="cover-image" />
       </div>
 
       <div className="block-content">

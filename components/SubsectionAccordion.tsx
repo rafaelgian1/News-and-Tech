@@ -14,12 +14,39 @@ type Props = {
   language: AppLanguage;
 };
 
+type PdfCursor = {
+  y: number;
+};
+
 function storageKey(issueDate: string, block: string, subsectionKey: string) {
   return `saved:${issueDate}:${block}:${subsectionKey}`;
 }
 
 function translationKey(issueDate: string, block: string, subsectionKey: string, language: AppLanguage) {
-  return `tr:${issueDate}:${block}:${subsectionKey}:${language}`;
+  return `tr:v3:${issueDate}:${block}:${subsectionKey}:${language}`;
+}
+
+function hasGreekChars(value: string) {
+  return /[\u0370-\u03FF]/.test(value);
+}
+
+function subsectionLooksGreek(subsection: Subsection) {
+  const sample = [
+    subsection.label,
+    subsection.narrative ?? "",
+    ...subsection.items.flatMap((item) => [
+      item.headline,
+      ...item.keyFacts,
+      item.analysis,
+      ...item.implications,
+      ...item.watchNext,
+      item.credibilityNotes ?? ""
+    ])
+  ]
+    .join(" ")
+    .trim();
+
+  return sample.length > 0 && hasGreekChars(sample);
 }
 
 function hashText(input: string) {
@@ -54,44 +81,53 @@ function articleImage(headline: string, block: "news" | "tech") {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-function escapeHtml(text: string) {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+function ensurePdfSpace(doc: { internal: { pageSize: { getHeight: () => number } }; addPage: () => void }, cursor: PdfCursor, needed = 14) {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const bottom = 42;
+  if (cursor.y + needed > pageHeight - bottom) {
+    doc.addPage();
+    cursor.y = 42;
+  }
 }
 
-function subsectionToHtml(subsection: Subsection, issueDate: string, language: AppLanguage) {
-  const itemsHtml = subsection.items
-    .map((item) => {
-      const keyFacts = item.keyFacts.map((f) => `<li>${escapeHtml(f)}</li>`).join("");
-      const implications = item.implications.map((i) => `<li>${escapeHtml(i)}</li>`).join("");
-      const watch = item.watchNext.map((w) => `<li>${escapeHtml(w)}</li>`).join("");
-      const sources = item.sources
-        .map((s) => `<li><a href='${escapeHtml(s.url)}'>${escapeHtml(s.title)}</a>${s.publisher ? ` - ${escapeHtml(s.publisher)}` : ""}</li>`)
-        .join("");
+function writePdfParagraph(
+  doc: {
+    setFontSize: (size: number) => void;
+    setFont: (family: string, style?: string) => void;
+    splitTextToSize: (text: string, maxWidth: number) => string[];
+    text: (text: string, x: number, y: number) => void;
+    internal: { pageSize: { getHeight: () => number } };
+    addPage: () => void;
+  },
+  text: string,
+  cursor: PdfCursor,
+  options: { x: number; maxWidth: number; size?: number; bold?: boolean; lineGap?: number } = { x: 42, maxWidth: 500 }
+) {
+  if (!text.trim()) {
+    return;
+  }
 
-      return `<section style='margin:0 0 24px'>
-        <h3 style='margin:0 0 8px'>${escapeHtml(item.headline)}</h3>
-        <p><strong>${escapeHtml(t(language, "keyFacts"))}</strong></p><ul>${keyFacts}</ul>
-        <p>${escapeHtml(item.analysis)}</p>
-        <p><strong>${escapeHtml(t(language, "implications"))}</strong></p><ul>${implications}</ul>
-        <p><strong>${escapeHtml(t(language, "watchNext"))}</strong></p><ul>${watch}</ul>
-        ${item.credibilityNotes ? `<p><strong>${escapeHtml(t(language, "credibilityNote"))}:</strong> ${escapeHtml(item.credibilityNotes)}</p>` : ""}
-        <p><strong>${escapeHtml(t(language, "sources"))}</strong></p><ul>${sources}</ul>
-      </section>`;
-    })
-    .join("");
+  doc.setFont("helvetica", options.bold ? "bold" : "normal");
+  doc.setFontSize(options.size ?? 11);
 
-  return `<!doctype html><html><head><meta charset='utf-8'/><title>${escapeHtml(localizeSubsectionLabel(subsection.label, language))} - ${issueDate}</title></head>
-  <body style='font-family: -apple-system, Segoe UI, Arial, sans-serif; padding: 28px; line-height: 1.45;'>
-    <h1 style='margin:0 0 4px'>${escapeHtml(localizeSubsectionLabel(subsection.label, language))}</h1>
-    <p style='margin:0 0 20px; color:#444'>${escapeHtml(t(language, "appTitle"))} - ${issueDate}</p>
-    ${subsection.narrative ? `<p><strong>${escapeHtml(t(language, "analysis"))}</strong>: ${escapeHtml(subsection.narrative)}</p>` : ""}
-    ${itemsHtml || `<p>${escapeHtml(t(language, "noItems"))}</p>`}
-  </body></html>`;
+  const lineGap = options.lineGap ?? 14;
+  const lines = doc.splitTextToSize(text, options.maxWidth);
+
+  lines.forEach((line) => {
+    ensurePdfSpace(doc, cursor, lineGap);
+    doc.text(line, options.x, cursor.y);
+    cursor.y += lineGap;
+  });
+
+  cursor.y += 4;
+}
+
+function asFileToken(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
 }
 
 export function SubsectionAccordion({ issueDate, block, subsectionKey, subsection, search, language }: Props) {
@@ -135,7 +171,13 @@ export function SubsectionAccordion({ issueDate, block, subsectionKey, subsectio
     const cached = window.localStorage.getItem(localKey);
     if (cached) {
       try {
-        setTranslatedSubsection(JSON.parse(cached) as Subsection);
+        const parsed = JSON.parse(cached) as Subsection;
+        if (!subsectionLooksGreek(parsed)) {
+          window.localStorage.removeItem(localKey);
+          throw new Error("cached translation not greek");
+        }
+
+        setTranslatedSubsection(parsed);
         setTranslationError(false);
         return;
       } catch {
@@ -157,6 +199,10 @@ export function SubsectionAccordion({ issueDate, block, subsectionKey, subsectio
         }
 
         const payload = (await response.json()) as { subsection: Subsection };
+        if (!subsectionLooksGreek(payload.subsection)) {
+          throw new Error("translation not applied");
+        }
+
         setTranslatedSubsection(payload.subsection);
         setTranslationError(false);
         window.localStorage.setItem(localKey, JSON.stringify(payload.subsection));
@@ -194,7 +240,7 @@ export function SubsectionAccordion({ issueDate, block, subsectionKey, subsectio
     });
   }, [search, activeSubsection.items]);
 
-  const onSavePdf = () => {
+  const onSavePdf = async () => {
     const next = !saved;
     setSaved(next);
 
@@ -204,17 +250,83 @@ export function SubsectionAccordion({ issueDate, block, subsectionKey, subsectio
       } else {
         window.localStorage.removeItem(key);
       }
+    }
 
-      const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1024,height=860");
-      if (!printWindow) {
-        return;
+    try {
+      const { jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const left = 42;
+      const maxWidth = doc.internal.pageSize.getWidth() - left * 2;
+      const cursor: PdfCursor = { y: 42 };
+
+      const displayLabel = localizeSubsectionLabel(activeSubsection.label, language);
+      writePdfParagraph(doc, displayLabel, cursor, { x: left, maxWidth, size: 18, bold: true, lineGap: 22 });
+      writePdfParagraph(doc, `${t(language, "appTitle")} - ${issueDate}`, cursor, {
+        x: left,
+        maxWidth,
+        size: 10,
+        lineGap: 13
+      });
+
+      if (activeSubsection.narrative) {
+        writePdfParagraph(doc, `${t(language, "analysis")}: ${activeSubsection.narrative}`, cursor, {
+          x: left,
+          maxWidth,
+          size: 11,
+          lineGap: 14
+        });
       }
 
-      printWindow.document.open();
-      printWindow.document.write(subsectionToHtml(activeSubsection, issueDate, language));
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
+      activeSubsection.items.forEach((item, index) => {
+        if (index > 0) {
+          cursor.y += 6;
+        }
+
+        writePdfParagraph(doc, item.headline, cursor, { x: left, maxWidth, size: 13, bold: true, lineGap: 17 });
+
+        if (item.keyFacts.length > 0) {
+          writePdfParagraph(doc, `${t(language, "keyFacts")}:`, cursor, { x: left, maxWidth, bold: true });
+          item.keyFacts.forEach((fact) => {
+            writePdfParagraph(doc, `- ${fact}`, cursor, { x: left + 8, maxWidth: maxWidth - 8 });
+          });
+        }
+
+        writePdfParagraph(doc, item.analysis, cursor, { x: left, maxWidth });
+
+        if (item.implications.length > 0) {
+          writePdfParagraph(doc, `${t(language, "implications")}:`, cursor, { x: left, maxWidth, bold: true });
+          item.implications.forEach((implication) => {
+            writePdfParagraph(doc, `- ${implication}`, cursor, { x: left + 8, maxWidth: maxWidth - 8 });
+          });
+        }
+
+        if (item.watchNext.length > 0) {
+          writePdfParagraph(doc, `${t(language, "watchNext")}:`, cursor, { x: left, maxWidth, bold: true });
+          item.watchNext.forEach((watch) => {
+            writePdfParagraph(doc, `- ${watch}`, cursor, { x: left + 8, maxWidth: maxWidth - 8 });
+          });
+        }
+
+        if (item.credibilityNotes) {
+          writePdfParagraph(doc, `${t(language, "credibilityNote")}: ${item.credibilityNotes}`, cursor, {
+            x: left,
+            maxWidth
+          });
+        }
+
+        if (item.sources.length > 0) {
+          writePdfParagraph(doc, `${t(language, "sources")}:`, cursor, { x: left, maxWidth, bold: true });
+          item.sources.forEach((source) => {
+            const sourceLine = `${source.title}${source.publisher ? ` - ${source.publisher}` : ""}: ${source.url}`;
+            writePdfParagraph(doc, `- ${sourceLine}`, cursor, { x: left + 8, maxWidth: maxWidth - 8 });
+          });
+        }
+      });
+
+      const fileName = `daily-brief-${issueDate}-${asFileToken(block)}-${asFileToken(subsectionKey)}.pdf`;
+      doc.save(fileName);
+    } catch {
+      window.alert(t(language, "savePdfFailed"));
     }
   };
 
@@ -230,7 +342,7 @@ export function SubsectionAccordion({ issueDate, block, subsectionKey, subsectio
           </p>
         </button>
         <div className="subsection-actions">
-          <button type="button" onClick={onSavePdf} className={clsx(saved && "active")} title={t(language, "savePdf")}>
+          <button type="button" onClick={() => void onSavePdf()} className={clsx(saved && "active")} title={t(language, "savePdf")}>
             {t(language, "savePdf")}
           </button>
           <button type="button" onClick={() => setOpen(true)}>

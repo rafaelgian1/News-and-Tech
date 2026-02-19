@@ -7,6 +7,45 @@ type Body = {
   subsection: Subsection;
 };
 
+function hasGreekChars(value: string) {
+  return /[\u0370-\u03FF]/.test(value);
+}
+
+function subsectionLooksGreek(subsection: Subsection) {
+  const sample = [
+    subsection.label,
+    subsection.narrative ?? "",
+    ...subsection.items.flatMap((item) => [
+      item.headline,
+      ...item.keyFacts,
+      item.analysis,
+      ...item.implications,
+      ...item.watchNext,
+      item.credibilityNotes ?? "",
+      ...item.sources.flatMap((source) => [source.title, source.publisher ?? ""])
+    ])
+  ]
+    .join(" ")
+    .trim();
+
+  return sample.length > 0 && hasGreekChars(sample);
+}
+
+function translationPrompt(subsection: Subsection, strict: boolean) {
+  return `Translate this subsection JSON to Greek while preserving structure and URLs exactly.
+
+Output rules:
+- Return ONLY valid JSON with the exact same schema.
+- Translate ALL translatable text fields to Greek:
+  label, narrative, headline, keyFacts, analysis, implications, watchNext, credibilityNotes, source title/publisher.
+- Do NOT change source URLs.
+- Keep concise editorial tone.
+${strict ? "- IMPORTANT: Output must be Greek text (except proper nouns/URLs). Avoid leaving English sentences untranslated." : ""}
+
+INPUT JSON:
+${JSON.stringify(subsection)}`;
+}
+
 export async function POST(request: NextRequest) {
   let body: Body;
 
@@ -28,19 +67,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Translation service unavailable" }, { status: 503 });
   }
 
-  const prompt = `Translate this subsection JSON to Greek while preserving structure and URLs exactly.
-
-Rules:
-- Return ONLY valid JSON matching the same schema.
-- Translate label, narrative, headline, keyFacts, analysis, implications, watchNext, credibilityNotes, source title/publisher.
-- Do not modify source URLs.
-- Keep tone concise and editorially neutral.
-
-INPUT JSON:
-${JSON.stringify(body.subsection)}`;
-
   try {
-    const translated = (await callJsonLLM(prompt)) as Subsection;
+    let translated = (await callJsonLLM(translationPrompt(body.subsection, false))) as Subsection;
+
+    if (!subsectionLooksGreek(translated)) {
+      translated = (await callJsonLLM(translationPrompt(body.subsection, true))) as Subsection;
+    }
+
+    if (!subsectionLooksGreek(translated)) {
+      return NextResponse.json({ error: "Translation not applied" }, { status: 422 });
+    }
+
     return NextResponse.json({ subsection: translated });
   } catch (error) {
     return NextResponse.json(
