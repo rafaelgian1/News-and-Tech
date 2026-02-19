@@ -77,8 +77,11 @@ export async function GET(request: NextRequest) {
     return unauthorized();
   }
 
+  const force = ["1", "true", "yes"].includes((request.nextUrl.searchParams.get("force") ?? "").toLowerCase());
+
   // Two UTC cron schedules are configured; run only at 09:00 Athens local time.
-  if (athensHourNow() !== 9) {
+  // Authorized manual checks can bypass this with force=1.
+  if (!force && athensHourNow() !== 9) {
     return NextResponse.json({ status: "skipped", reason: "Outside 09:00 Europe/Athens window" }, { status: 202 });
   }
 
