@@ -451,3 +451,31 @@ h1 {
 .lang-select {
   min-width: 118px;
 }
+
+.fallback-note-row {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.fallback-note button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.fallback-note button:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.fallback-error {
+  margin-top: 0.45rem;
+  color: #9d2c2c;
+  font-size: 0.82rem;
+}

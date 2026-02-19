@@ -23,6 +23,8 @@ export function DailyBriefApp({ selectedDate, issue, quickDays, requestedDateFou
   const [showTech, setShowTech] = useState(true);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [language, setLanguage] = useState<AppLanguage>("en");
+  const [isIngestingSelectedDate, setIsIngestingSelectedDate] = useState(false);
+  const [ingestError, setIngestError] = useState("");
 
   const pageTitle = useMemo(() => formatHumanDate(selectedDate, localeForLanguage(language)), [selectedDate, language]);
 
@@ -56,6 +58,38 @@ export function DailyBriefApp({ selectedDate, issue, quickDays, requestedDateFou
   const onLanguageChange = (next: AppLanguage) => {
     setLanguage(next);
     window.localStorage.setItem("daily-brief-language", next);
+  };
+
+  const ingestSelectedDayNow = async () => {
+    setIngestError("");
+    setIsIngestingSelectedDate(true);
+
+    try {
+      const response = await fetch("/api/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: selectedDate })
+      });
+
+      if (!response.ok) {
+        let detail = "";
+        try {
+          const payload = (await response.json()) as { error?: string; detail?: string };
+          detail = payload.error ?? payload.detail ?? "";
+        } catch {
+          // ignore json parsing errors
+        }
+
+        setIngestError(detail ? `${t(language, "ingestFailed")} (${detail})` : t(language, "ingestFailed"));
+        return;
+      }
+
+      window.location.href = `/?date=${selectedDate}`;
+    } catch {
+      setIngestError(t(language, "ingestFailed"));
+    } finally {
+      setIsIngestingSelectedDate(false);
+    }
   };
 
   return (
@@ -124,7 +158,13 @@ export function DailyBriefApp({ selectedDate, issue, quickDays, requestedDateFou
 
       {!requestedDateFound && issue ? (
         <section className="fallback-note">
-          <p>{t(language, "noIssueForDate", { selectedDate, issueDate: issue.date })}</p>
+          <div className="fallback-note-row">
+            <p>{t(language, "noIssueForDate", { selectedDate, issueDate: issue.date })}</p>
+            <button type="button" onClick={() => void ingestSelectedDayNow()} disabled={isIngestingSelectedDate}>
+              {isIngestingSelectedDate ? t(language, "ingestingDay") : t(language, "ingestSelectedDay")}
+            </button>
+          </div>
+          {ingestError ? <p className="fallback-error">{ingestError}</p> : null}
         </section>
       ) : null}
 
