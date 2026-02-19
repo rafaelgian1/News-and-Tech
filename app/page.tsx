@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { DailyBriefApp } from "@/components/DailyBriefApp";
 import { getTodayISO, rollingWindowDates } from "@/lib/date";
 import { getIssueOrLatest } from "@/lib/service";

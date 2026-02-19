@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { formatHumanDate } from "@/lib/date";
 import { getArchiveWindow } from "@/lib/service";

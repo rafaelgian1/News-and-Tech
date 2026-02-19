@@ -29,7 +29,8 @@ export function usingPostgres() {
 export function getSqliteDb() {
   if (!sqliteDb) {
     const require = createRequire(import.meta.url);
-    const BetterSqlite3 = require("better-sqlite3") as new (filename: string) => SqliteDb;
+    const moduleName = ["better", "sqlite3"].join("-");
+    const BetterSqlite3 = require(moduleName) as new (filename: string) => SqliteDb;
     sqliteDb = new BetterSqlite3(DB_PATH);
     sqliteDb.pragma("journal_mode = WAL");
     bootstrapSqlite(sqliteDb);
