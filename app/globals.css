@@ -480,3 +480,92 @@ h1 {
   color: #9d2c2c;
   font-size: 0.82rem;
 }
+
+.manual-sheet {
+  width: min(1080px, 100%);
+}
+
+.manual-ingest-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.manual-date-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface-alt);
+  font-size: 0.88rem;
+}
+
+.manual-date-pill span {
+  color: var(--muted);
+}
+
+.manual-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.manual-field {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.manual-field span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.manual-textarea {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  line-height: 1.4;
+}
+
+.manual-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.manual-actions button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.manual-actions .manual-primary {
+  background: var(--accent-soft);
+  border-color: color-mix(in oklab, var(--accent), #ffffff 60%);
+}
+
+.manual-actions button:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+@media (min-width: 860px) {
+  .manual-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .manual-field-wide {
+    grid-column: 1 / -1;
+  }
+}

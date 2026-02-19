@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BlockCard } from "@/components/BlockCard";
 import { EmptyState } from "@/components/EmptyState";
@@ -35,6 +35,13 @@ export function DailyBriefApp({ selectedDate, issue, quickDays, requestedDateFou
   const [language, setLanguage] = useState<AppLanguage>("en");
   const [isIngestingSelectedDate, setIsIngestingSelectedDate] = useState(false);
   const [ingestError, setIngestError] = useState("");
+
+  const [showManualIngest, setShowManualIngest] = useState(false);
+  const [manualNewsText, setManualNewsText] = useState("");
+  const [manualTechText, setManualTechText] = useState("");
+  const [manualSportsText, setManualSportsText] = useState("");
+  const [manualError, setManualError] = useState("");
+  const [isManualIngesting, setIsManualIngesting] = useState(false);
 
   const pageTitle = useMemo(() => formatHumanDate(selectedDate, localeForLanguage(language)), [selectedDate, language]);
 
@@ -109,6 +116,62 @@ export function DailyBriefApp({ selectedDate, issue, quickDays, requestedDateFou
     }
   };
 
+  const openManualIngest = () => {
+    setManualError("");
+    setShowManualIngest(true);
+  };
+
+  const closeManualIngest = () => {
+    if (isManualIngesting) {
+      return;
+    }
+    setShowManualIngest(false);
+  };
+
+  const submitManualIngest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setManualError("");
+
+    if (!manualNewsText.trim() && !manualTechText.trim() && !manualSportsText.trim()) {
+      setManualError(t(language, "manualIngestNeedInput"));
+      return;
+    }
+
+    setIsManualIngesting(true);
+
+    try {
+      const response = await fetch("/api/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: selectedDate,
+          newsText: manualNewsText,
+          techText: manualTechText,
+          sportsText: manualSportsText
+        })
+      });
+
+      if (!response.ok) {
+        let detail = "";
+        try {
+          const payload = (await response.json()) as { error?: string; detail?: string };
+          detail = payload.error ?? payload.detail ?? "";
+        } catch {
+          // ignore json parsing errors
+        }
+
+        setManualError(detail ? `${t(language, "ingestFailed")} (${detail})` : t(language, "ingestFailed"));
+        return;
+      }
+
+      window.location.href = `/?date=${selectedDate}`;
+    } catch {
+      setManualError(t(language, "ingestFailed"));
+    } finally {
+      setIsManualIngesting(false);
+    }
+  };
+
   return (
     <main className="container">
       <header className="topbar">
@@ -144,6 +207,9 @@ export function DailyBriefApp({ selectedDate, issue, quickDays, requestedDateFou
               </option>
             ))}
           </select>
+          <button type="button" onClick={openManualIngest}>
+            {t(language, "manualIngest")}
+          </button>
           <button type="button" onClick={onThemeToggle}>
             {theme === "light" ? t(language, "themeDark") : t(language, "themeLight")}
           </button>
@@ -201,6 +267,72 @@ export function DailyBriefApp({ selectedDate, issue, quickDays, requestedDateFou
           ))}
         </section>
       )}
+
+      {showManualIngest ? (
+        <div className="modal-backdrop" role="presentation" onClick={closeManualIngest}>
+          <div className="modal-sheet manual-sheet" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <h3>{t(language, "manualIngestTitle")}</h3>
+                <p>{t(language, "manualIngestSubtitle", { date: selectedDate })}</p>
+              </div>
+              <button type="button" onClick={closeManualIngest} disabled={isManualIngesting}>
+                {t(language, "close")}
+              </button>
+            </div>
+
+            <form className="manual-ingest-form" onSubmit={submitManualIngest}>
+              <div className="manual-date-pill">
+                <span>{t(language, "manualIngestForDate")}</span>
+                <strong>{selectedDate}</strong>
+              </div>
+
+              <div className="manual-grid">
+                <label className="manual-field">
+                  <span>{t(language, "manualNewsLabel")}</span>
+                  <textarea
+                    className="manual-textarea"
+                    value={manualNewsText}
+                    onChange={(event) => setManualNewsText(event.target.value)}
+                    placeholder={t(language, "manualNewsPlaceholder")}
+                  />
+                </label>
+
+                <label className="manual-field">
+                  <span>{t(language, "manualTechLabel")}</span>
+                  <textarea
+                    className="manual-textarea"
+                    value={manualTechText}
+                    onChange={(event) => setManualTechText(event.target.value)}
+                    placeholder={t(language, "manualTechPlaceholder")}
+                  />
+                </label>
+
+                <label className="manual-field manual-field-wide">
+                  <span>{t(language, "manualSportsLabel")}</span>
+                  <textarea
+                    className="manual-textarea"
+                    value={manualSportsText}
+                    onChange={(event) => setManualSportsText(event.target.value)}
+                    placeholder={t(language, "manualSportsPlaceholder")}
+                  />
+                </label>
+              </div>
+
+              {manualError ? <p className="fallback-error">{manualError}</p> : null}
+
+              <div className="manual-actions">
+                <button type="button" onClick={closeManualIngest} disabled={isManualIngesting}>
+                  {t(language, "manualIngestCancel")}
+                </button>
+                <button type="submit" className="manual-primary" disabled={isManualIngesting}>
+                  {isManualIngesting ? t(language, "manualIngestRunning") : t(language, "manualIngestSubmit")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

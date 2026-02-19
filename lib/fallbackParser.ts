@@ -243,14 +243,24 @@ function splitSentences(text: string): string[] {
 }
 
 function classifySentence(sentence: string, source: SourceBucket): { block: CoverBlock; subsection: string } {
-  const matched = TARGET_RULES.find(
+  const matched = TARGET_RULES.filter(
     (rule) => rule.source === source && rule.patterns.some((pattern) => pattern.test(sentence))
   );
 
-  if (matched) {
+  if (matched.length > 0) {
+    if (source === "sports") {
+      const nonMatchCenter = matched.find((rule) => rule.block !== "match_center");
+      if (nonMatchCenter) {
+        return {
+          block: nonMatchCenter.block,
+          subsection: nonMatchCenter.subsection
+        };
+      }
+    }
+
     return {
-      block: matched.block,
-      subsection: matched.subsection
+      block: matched[0].block,
+      subsection: matched[0].subsection
     };
   }
 

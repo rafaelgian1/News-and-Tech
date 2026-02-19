@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateAutomationFeedFromLLM, loadAutomationFeed } from "@/lib/automationFeed";
+import { generateAutomationFeedFromLLM, generateAutomationFeedFromPublicSources, loadAutomationFeed } from "@/lib/automationFeed";
 import { hasSportsDataApiConfig } from "@/lib/sportsData";
 import { ingestDailyIssue } from "@/lib/service";
 import { IngestPayload } from "@/lib/types";
@@ -39,6 +39,13 @@ async function runIngest(body: IngestPayload) {
 
   if (!newsText.trim() && !techText.trim() && !sportsText.trim()) {
     let feed = await loadAutomationFeed(date);
+
+    if (!feed || (!feed.newsText.trim() && !feed.techText.trim() && !feed.sportsText.trim())) {
+      const allowPublic = (process.env.AUTO_PUBLIC_FEED ?? "true").toLowerCase() !== "false";
+      if (allowPublic) {
+        feed = await generateAutomationFeedFromPublicSources(date);
+      }
+    }
 
     if (!feed || (!feed.newsText.trim() && !feed.techText.trim() && !feed.sportsText.trim())) {
       const allowAuto = (process.env.AUTO_GENERATE_DAILY_BRIEF ?? "true").toLowerCase() !== "false";
